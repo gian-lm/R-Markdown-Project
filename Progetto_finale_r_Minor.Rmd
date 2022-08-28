@@ -137,7 +137,7 @@ variabilita_conto <- bsh %>%
     IQR_temp = IQR(temp, na.rm = T),
   )%>%
     kable(escape = F,
-          caption = "<b>Tabella 1.</b> Distribuzione e variabilità`.") %>%
+          caption = "<b>Tabella 2.</b> Distribuzione e variabilità`.") %>%
     kable_styling(bootstrap_options = "hover", full_width = F) %>%
     add_header_above(header = c("Misure statistiche totale noleggi" = 5, "Misure statistiche noleggi utenti registrati" = 5, "Misure statistiche noleggi utenti non registrati" = 5, "Misure statistiche temperature" = 5), italic = T)
 
@@ -151,7 +151,7 @@ Visualizziamo la distribuzione della temperatura per mese:
 ```{r}
 bsh$monthyear <- as.yearmon(bsh$dteday, "%b %Y")
 
-ggplot(bsh, aes(x = temp, y=monthyear, group=monthyear, fill = stat(x))) +
+ggplot(bsh, aes(x = temp, y=monthyear, group=monthyear, fill = stat(x), caption ="Fig. 1")) +
   geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_fill_viridis_c(name = "Temp.", option = "C") +
@@ -258,7 +258,9 @@ ggplot(data = bsh, mapping = aes(x = temp, y = cnt), color=black) +
 Vi è una certa linearità fino al valore temp 0.6, che rappresenta i 24.6 gradi Celsius, ma oltre questa soglia la relazione fra le variabili tende a curvarsi.
 
 
-tutto:
+##Analisi di Regressione
+
+Regressione lineare
 ```{r}
 plot(bsh$temp, bsh$cnt)
 retta=lm(bsh$cnt ~ bsh$temp)
@@ -270,9 +272,11 @@ plot(retta)
 summary(retta)
 
 ```
+Questa analisi ci restituisce un r quadro di 0.39 ma visualizzando i dati e le distanze fra i punti e la retta si intuisce che una regressione parabolica potrebbe fare ottenere risultati migliori.
 
 
-modello parabolico
+
+Regressione parabolica
 ```{r}
 plot(bsh$temp, bsh$cnt)
 temp2 = bsh$temp^2
@@ -283,7 +287,9 @@ title(main="Regressione parabola fra conto e temperatura")
 plot(parabola)
 summary(parabola)
 ```
+Questo modello restituisce un r quadro di 0.45, sottolineando una correlazione di una certa rilevanza.
 
+Ma i nostri anni riguardano due anni, e da come abbiamo notato nel boxplot
 
 2012:
 ```{r}
@@ -320,3 +326,18 @@ summary(parabola2011)
 #Conclusioni
 Abbiamo esplorato vari pacchetti di r per svolgere questa analisi e provato a costruire vari tipi di visualizzazioni. Questo ci ha permesso di comprendere meglio il dataset.
 nell'opinione dell'autore Le tecniche utilizzate non sono le più efficaci per raggiungere gli obbiettivi del progetto ma abbiamo comunque potuto notare che vi è una certa relazione fra temperature e affitti la regressione non ha dato buoni risultati in quanto non sia il modello adatto al dataset.
+
+
+
+
+```{r}
+library(ggpmisc)
+
+# fitting a polynomial
+ggplot(data = d2012, aes(x = temp, y = cnt)) +
+  stat_poly_line(formula = y ~ poly(x, 2, raw = TRUE)) +
+  stat_poly_eq(formula = y ~ poly(x, 2, raw = TRUE),
+               aes(label = after_stat(eq.label))) +
+  geom_point()
+```
+
