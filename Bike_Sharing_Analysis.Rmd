@@ -1,0 +1,355 @@
+---
+title: "Statistical exploration of 'Bike Sharing Dataset', Washington D.C. 2011/2012"
+author: "Gianluca La Malfa"
+date: 'Venice, July 2022'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+=========================================
+
+# Introduction
+
+This is the final project of the 'Data & Knowledge' course of the minor in Computer and Data Science presented by Gianluca La Malfa at the Ca'Foscari University of Venice.
+The course aimed to build knowledge on the use of statistical methods with R.
+
+## Objectives of the project
+
+The objective of this project is to statistically explore the 'Bike Sharing Dataset' dataset using some of the most used R packages such as tidyverse, ggplot2 and kableExtra. These packages will be used to spot trends by calculating statistical indicators and building charts which can help to better understand the dataset. 
+At the end of the first analysis, a regression analysis will be built to better understand the found trends.
+
+## Dataset description:
+
+The dataset represents the daily data of bike sharing in Washington D.C. during the years 2011 and 2012.
+
+Dictionary:
+
+	- instant: record index
+	- dteday : date
+	- season : season (1:springer, 2:summer, 3:fall, 4:winter)
+	- yr : year (0: 2011, 1:2012)
+	- mnth : month ( 1 to 12)
+	- hr : hour (0 to 23)
+	- holiday : weather day is holiday or not (extracted from
+	  http://dchr.dc.gov/page/holiday-schedule)
+	- weekday : day of the week
+	- workingday : if day is neither weekend nor holiday is 1, otherwise is 0.
+	+ weathersit : 
+		- 1: Clear, Few clouds, Partly cloudy, Partly cloudy
+		- 2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist
+		- 3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered 
+		  clouds
+		- 4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog
+	- temp : Normalized temperature in Celsius. The values are divided to 41 (max)
+	- atemp: Normalized feeling temperature in Celsius. The values are divided to 50 (max)
+	- hum: Normalized humidity. The values are divided to 100 (max)
+	- windspeed: Normalized wind speed. The values are divided to 67 (max)
+	- casual: count of casual users
+	- registered: count of registered users
+	- cnt: count of total rental bikes including both casual and registered
+	
+
+
+## Source:
+
+https://data.world/uci/bike-sharing-dataset
+
+=========================================
+
+
+# Analysis
+
+
+## Setup of the environment
+
+Import packages.
+
+```{r}
+library(tidyverse) # analyse data
+library(ggplot2) # visulise data
+library(kableExtra) # make tables
+library(ggridges) # make chart with gradient areas
+library(zoo) # change date format
+library(ggpmisc) # polynomial regression
+```
+
+
+Upload the file.
+
+```{r}
+day <- read.csv(
+  'C:/Users/user/Documents/RStudio repository/uci-bike-sharing-dataset/day.csv'
+  )
+```
+
+
+## First explorations and manipulations
+
+Observe the first rows of the dataset to better understand how it is structured.
+ 
+```{r}
+head(day)
+```
+
+
+Change the date variable 'dteday' format from string to date, and denormalize the temperature variable 'temp' to a Celsius unit of measurement.
+
+```{r}
+bsh <- day %>%
+  mutate(dteday = as.Date(dteday, format="%Y-%m-%d"), temp = temp*41)
+
+#bsh$dteday <- as.Date(bsh$dteday, format="%Y-%m-%d")
+```
+
+
+Calculate some statistics to better understand the distribution of the variables included in the dataset.
+
+```{r}
+sommario <- bsh %>%
+  select(dteday, holiday, weathersit, temp, atemp, hum,  windspeed, casual, registered, 
+         cnt)
+summary(sommario)
+```
+
+
+Create a table more specific table with statistics about variables of interest.
+
+```{r}
+# Create a dataframe with statistics per field
+tot<-  summarise(bsh,
+    Mean = round(mean(cnt, na.rm=T), 0),
+    Variance = round(var(cnt, na.rm = T), 0), 
+    StdDev = round(sd(cnt, na.rm = T), 0),
+    CV = round(StdDev/Mean, 2),
+    IQR = round(IQR(cnt, na.rm = T), 0)
+    )
+  
+reg<-  summarise(bsh,
+    Mean = round(mean(registered, na.rm=T), 0),
+    Variance = round(var(registered, na.rm = T), 0),
+    StdDev = round(sd(registered, na.rm = T), 0),
+    CV = round(StdDev/Mean, 2),
+    IQR = round(IQR(registered, na.rm = T), 0)
+  )
+  
+nreg <-  summarise(bsh,
+    Mean = round(mean(casual, na.rm=T), 0),
+    Variance = round(var(casual, na.rm = T), 0),
+    StdDev = round(sd(casual, na.rm = T), 0),
+    CV = round(StdDev/Mean, 2),
+    IQR = round(IQR(casual, na.rm = T), 0)
+  )
+  
+tempa<-  summarise(bsh,
+    Mean = round(mean(temp, na.rm=T), 2),
+    Variance = round(var(temp, na.rm = T),  2),
+    StdDev = round(sd(temp, na.rm = T), 2),
+    CV = round(StdDev/Mean, 2),
+    IQR = round(IQR(temp, na.rm = T), 2)
+  )
+
+# Unite the data frames
+newtab <- bind_rows('Total'=tot,
+          'Registered'=reg,
+          'Unregistered'=nreg,
+          'Temperature'=tempa, 
+          .id= "")
+
+# Add scaling colour to data frame for table
+newtab[1:3,2:6]<-lapply(newtab[1:3,2:6], function(x) {
+  cell_spec(x, color = spec_color(x, end = 0.9))
+  })
+  
+# Create table
+kbl(newtab, booktabs = T, escape = F, align = "c", caption = "<b>Table 1.</b> 
+    Distribution and variability of rented bikes by user category and temperature.", digits = 2) %>%
+kable_styling(bootstrap_options = "hover", full_width = F, position = "left") %>%
+column_spec(1, background = "#D3D3D3")#, bold=T) 
+
+```
+
+The unregistered users' coefficient of variation is double that of registered users. Probably because registered users have more incentives to rent more often.
+
+
+Visualise the distribution of temperature per month.
+
+```{r}
+bsh$monthyear <- as.yearmon(bsh$dteday, "%b %Y")
+
+ggplot(bsh, aes(x = temp, y=monthyear, group=monthyear, fill = stat(x))) +
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_fill_viridis_c(name = "Temp. C°", option = "C") +
+  coord_cartesian(clip = "off") +
+  labs(x="Temperature C°", 
+       title = 'Fig. 1: Temperature in Washington D.C. (2011-2012)') +
+  theme(axis.title.y = element_blank(), 
+        panel.background = element_rect(fill = NA, colour = NA),
+        panel.grid.major.y = element_line(colour = "grey92"),
+        legend.position = c(0.85, 0.95),
+        legend.direction="horizontal")
+
+```
+
+
+Visualise the distribution of rented bikes per year (0=2011, 1=2012).
+
+```{r}
+ggplot(data = bsh, aes(x = yr, y = cnt, group = yr)) + 
+  geom_boxplot(fill = "darkorange", alpha=0.1, coef = 10) + 
+  geom_jitter(width = 0, height = 0, alpha = 0.1, col = "black") +
+  stat_summary(fun = "mean", geom = "point", col = "darkorange", pch = 18, size = 4) +
+  labs(x="Year", y = "Rented bikes", 
+       title = "Fig. 2: Boxplot of yearly rented bikes (0=2011, 1=2012)")+
+  scale_x_continuous(breaks = 0:2)+
+  theme_bw()
+```
+
+
+Visualise the distribution of rented bikes per month.
+
+```{r}
+ggplot(data = bsh, aes(x = mnth, y = cnt, group = mnth)) + 
+  geom_boxplot(fill = "darkorange", alpha=0.1, coef = 10) + 
+  geom_jitter(width = 0, height = 0, alpha = 0.2, col = "black") +
+  stat_summary(fun = "mean", geom = "point", col = "darkorange", pch = 18, size = 4) + 
+  labs(x="Month", y = "Rented bikes", 
+       title = "Fig. 3: Boxplot of monthly rented bikes")+
+  scale_x_continuous(breaks = 1:12)+
+  theme_bw()
+```
+
+
+Visualise the distribution of rented bikes per day of the week (0=Monday).
+
+```{r}
+ggplot(data = bsh, aes(x = weekday, y = cnt, group = weekday)) + 
+  geom_boxplot(fill = "darkorange", alpha=0.1, coef = 10) + 
+  geom_jitter(width = 0, height = 0, alpha = 0.2, col = "black", size=2) +
+  stat_summary(fun = "mean", geom = "point", col = "darkorange", pch = 18, size = 4) + 
+  labs(x = "Day of the week", y = "Rented bikes", 
+       title = "Fig. 4: Boxplot of rented bikes by day of the week (0=Monday)") +
+  scale_x_continuous(breaks = 0:12)+
+  theme_bw()
+```
+
+
+Calculate and make a table with the average temperature and the share of bikes rented per month by the different user categories.
+
+```{r}
+# Create a data frame containing the monthly per cent of totals of variables of interest
+bsharing <- bsh %>%
+  mutate(total = sum(cnt), 
+         total_registered = sum(registered), 
+         total_unregistered = sum(casual)) %>% 
+  group_by(mnth) %>%
+  summarise(aggr_monthly = sum(cnt), 
+            aggr_monthly_registered = sum(registered),
+            aggr_monthly_unregistered = sum(casual),
+            mean_temp = mean(temp)) %>%
+  mutate(total = sum(aggr_monthly), 
+         perc.o.t_total = aggr_monthly/total*100,
+         total_registered = sum(aggr_monthly_registered), 
+         perc.o.t_registered = aggr_monthly_registered/total_registered*100,
+         total_unregistered = sum(aggr_monthly_unregistered), 
+         perc.o.t_unregistered = aggr_monthly_unregistered/total_unregistered*100) %>%
+  summarise("Month"=mnth, 
+            "Average temperature"=round(mean_temp,2), 
+            "Perc. total"=round(perc.o.t_total,2), 
+            "Perc. registered"=round(perc.o.t_registered,2), 
+            "Perc. unregistered"=round(perc.o.t_unregistered,2))
+
+bsharing[3:5]<-lapply(bsharing[3:5], function(x) {
+  cell_spec(x, color = spec_color(x, end = 0.9))
+  })
+
+
+kable(bsharing, escape = F,
+          caption = "<b>Table 2.</b> Percentage of total rented bikes per user category by month and average temperature."
+      ) %>%
+kable_styling(bootstrap_options = "hover", full_width = F, position = "left") %>%
+kable_classic_2(full_width = F) %>%
+column_spec(1, background = "#D3D3D3", bold=T) %>%
+column_spec(2, 
+            background = spec_color(bsharing$"Average temperature", 
+                                    end = 0.9, 
+                                    option = "A"), 
+            color="white")
+```
+
+
+Visualise a time series of the weekly average temperature and number of rented bikes by user category.
+
+```{r}
+weekly <- bsh %>%
+  mutate(Week = as.Date(cut(dteday, breaks = "week")))%>%
+  group_by(Week) %>%
+  summarise('Unregistered' = sum(casual), 'Registered' = sum(registered)) %>%
+  gather(key = "Category", value = "value", -Week)
+
+
+ggplot(data = weekly) +
+  geom_rect(data= bsh, aes(xmin=dteday-10,xmax=dteday+10,ymin=Inf,ymax=-Inf, 
+      fill=temp)) +
+  scale_fill_viridis_c(name = "Temp. C°", option = "C") +
+  geom_line(aes(x = Week, y = value, color = Category, linetype = Category)) +
+  scale_x_date(date_breaks = "3 month", expand = c(0, 0)) +
+  scale_linetype_manual(values=c("longdash", "solid")) +
+  scale_color_manual(values=c('white', 'white')) +
+  labs(x = "Date", 
+       y = "Rented bikes", 
+       title = "Fig. 5: Average temperature and rented bikes per user category by week") +
+  theme(axis.text.x = element_text(angle =45, hjust = 1), 
+        legend.key = element_rect(fill = "#3D0E6C"),
+        legend.position = "top") 
+```
+
+
+## Regression analysis
+
+Try a linear model to fit the data.
+
+```{r}
+plot(bsh$temp, bsh$cnt, xlab= "Temperature (C°)", ylab = "Rented bikes")
+retta=lm(bsh$cnt ~ bsh$temp)
+abline(retta, col="blue")
+segments(bsh$temp, fitted(retta), bsh$temp, bsh$cnt, lty=2)
+title(main="Fig. 6: Linear regression with segments")
+
+plot(retta)
+summary(retta)
+```
+
+
+The shape of the scatterplot suggests a polynomial model can better fit the data.
+
+```{r}
+ggplot(bsh, aes(temp, cnt)) +
+geom_point() +
+theme_bw() +
+stat_smooth(method = "lm",
+            formula = y ~ poly(x, 3),
+            color = "darkorange", fill = "darkorange") +
+labs(x = "Temperatura (C°)", y = "Biciclette noleggiate",
+     title = "Fig. 8: Regressione polinomiale") +
+stat_poly_eq(formula = y ~ poly(x, 3, raw = TRUE),
+               aes(label = after_stat(eq.label)))
+
+poly_mod <- lm(cnt ~ poly(temp, 3),
+               data = bsh)
+
+plot(poly_mod)
+summary(poly_mod)
+```
+
+
+# Conclusions
+
+In this project have been used some of the most important R packages to make a statistical analysis of the 'Bike Sharing Dataset'. It has been explored with descriptive statistics and the use of visualisations. Some trends and features inherent to the dataset have shown up and it has been decided to study the relationship between temperature and daily rented bikes. To do it two regression models have been built, one linear and one polynomial. The second has performed better suggesting that temperature explains 45% of the variation of daily rented bikes.
+
+
